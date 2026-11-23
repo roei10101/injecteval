@@ -15,7 +15,7 @@ VALID = {
 
 
 def test_builtin_scenarios_load_and_cover_every_category(scenarios):
-    assert len(scenarios) >= 12
+    assert len(scenarios) >= 14
     assert {scenario.category for scenario in scenarios} == set(CATEGORIES)
     assert len({scenario.id for scenario in scenarios}) == len(scenarios)
 

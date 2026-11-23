@@ -161,6 +161,15 @@ They are deliberately simple baselines, not recommendations. `filter` in particu
 beaten: its patterns miss the multilingual and task-blending payloads and delete a line from the instructional-document
 control, which is the usual fate of pattern matching in this problem.
 
+To see all of them side by side for one model:
+
+```bash
+injecteval compare --model ollama:llama3.2 --trials 3 --out reports/llama3.2
+```
+
+writes one full report per defense plus `comparison.md`, a table with attack success, task success
+under attack and task success on the controls for each defense.
+
 Adding one is a small subclass of `Defense` in [`defenses.py`](src/injecteval/defenses.py) that can
 change the system prompt and rewrite tool output.
 
@@ -212,7 +221,7 @@ src/injecteval/
 ├── graders.py       # deterministic graders over the recorded trace
 ├── runner.py        # trials, aggregation, confidence intervals
 ├── report.py        # Markdown and HTML reports
-├── cli.py           # list / validate / run
+├── cli.py           # list / validate / run / compare
 └── scenarios/       # the built-in scenarios (YAML)
 ```
 

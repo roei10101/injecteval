@@ -1,4 +1,4 @@
-"""Command line interface: ``injecteval list`` / ``run`` / ``validate``."""
+"""Command line interface: ``injecteval list`` / ``validate`` / ``run`` / ``compare``."""
 from __future__ import annotations
 
 import argparse
@@ -11,7 +11,7 @@ from .defenses import DEFENSES, get_defense
 from .environment import Environment
 from .graders import grade
 from .models import build_model, is_mock
-from .report import CATEGORY_LABELS, to_html, to_markdown
+from .report import CATEGORY_LABELS, comparison_markdown, to_html, to_markdown
 from .runner import TrialResult, build_report, run_suite
 from .scenario import Scenario, ScenarioError, load_scenarios
 
@@ -64,6 +64,38 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 1 if problems else 0
 
 
+def _write_report(report: dict, out: Path) -> None:
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    (out / "report.md").write_text(to_markdown(report), encoding="utf-8")
+    (out / "report.html").write_text(to_html(report), encoding="utf-8")
+
+
+def cmd_compare(args: argparse.Namespace) -> int:
+    """Run the same scenarios once per defense and put the results side by side."""
+    scenarios = _select(load_scenarios(args.scenarios), args.scenario, args.category)
+    names = args.defenses or list(DEFENSES)
+    out, reports = Path(args.out), []
+    for name in names:
+        defense = get_defense(name)
+        print(f"defense={name} model={args.model} scenarios={len(scenarios)} trials={args.trials}", file=sys.stderr)
+        results = run_suite(
+            scenarios,
+            lambda scenario: build_model(args.model, scenario, base_url=args.base_url, temperature=args.temperature),
+            defense, trials=args.trials, max_steps=args.max_steps,
+        )
+        report = build_report(results, args.model, defense, args.trials)
+        _write_report(report, out / name)
+        reports.append(report)
+
+    table = comparison_markdown(reports)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "comparison.md").write_text(table, encoding="utf-8")
+    print(table)
+    print(f"written to {out}/comparison.md", file=sys.stderr)
+    return 2 if all(r["summary"]["errors"] == r["summary"]["trials"] for r in reports) else 0
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     scenarios = _select(load_scenarios(args.scenarios), args.scenario, args.category)
     defense = get_defense(args.defense)
@@ -90,10 +122,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     report = build_report(results, args.model, defense, args.trials)
 
     out = Path(args.out)
-    out.mkdir(parents=True, exist_ok=True)
-    (out / "report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-    (out / "report.md").write_text(to_markdown(report), encoding="utf-8")
-    (out / "report.html").write_text(to_html(report), encoding="utf-8")
+    _write_report(report, out)
 
     summary = report["summary"]
     attack, utility = summary["attack_success"], summary["utility_under_attack"]
@@ -128,19 +157,28 @@ def build_parser() -> argparse.ArgumentParser:
     add_scenarios_option(p_validate)
     p_validate.set_defaults(func=cmd_validate)
 
-    p_run = sub.add_parser("run", help="run scenarios against a model and write a report")
-    add_scenarios_option(p_run)
-    p_run.add_argument("--model", required=True,
+    def add_run_options(p: argparse.ArgumentParser) -> None:
+        add_scenarios_option(p)
+        p.add_argument("--model", required=True,
                        help="provider:model, e.g. ollama:llama3.2, vllm:Qwen/Qwen2.5-7B-Instruct, mock:vulnerable")
-    p_run.add_argument("--base-url", help="OpenAI-compatible endpoint (overrides the provider default)")
+        p.add_argument("--base-url", help="OpenAI-compatible endpoint (overrides the provider default)")
+        p.add_argument("--trials", type=int, default=1, help="repetitions per scenario (default: 1)")
+        p.add_argument("--temperature", type=float, default=0.0)
+        p.add_argument("--max-steps", type=int, default=12, help="maximum model turns per trial (default: 12)")
+        p.add_argument("--scenario", action="append", metavar="ID", help="run only this scenario (repeatable)")
+        p.add_argument("--category", action="append", choices=sorted(CATEGORY_LABELS), help="run only this category")
+        p.add_argument("--out", default="reports", help="output directory (default: ./reports)")
+
+    p_compare = sub.add_parser("compare", help="run every defense against the same model and compare them")
+    add_run_options(p_compare)
+    p_compare.add_argument("--defenses", nargs="+", choices=sorted(DEFENSES), metavar="NAME",
+                           help=f"defenses to compare (default: all of {', '.join(DEFENSES)})")
+    p_compare.set_defaults(func=cmd_compare)
+
+    p_run = sub.add_parser("run", help="run scenarios against a model and write a report")
+    add_run_options(p_run)
     p_run.add_argument("--defense", default="none", choices=sorted(DEFENSES),
                        help="mitigation to apply (default: none)")
-    p_run.add_argument("--trials", type=int, default=1, help="repetitions per scenario (default: 1)")
-    p_run.add_argument("--temperature", type=float, default=0.0)
-    p_run.add_argument("--max-steps", type=int, default=12, help="maximum model turns per trial (default: 12)")
-    p_run.add_argument("--scenario", action="append", metavar="ID", help="run only this scenario (repeatable)")
-    p_run.add_argument("--category", action="append", choices=sorted(CATEGORY_LABELS), help="run only this category")
-    p_run.add_argument("--out", default="reports", help="output directory (default: ./reports)")
     p_run.add_argument("--fail-above", type=float, metavar="RATE",
                        help="exit with status 1 if the attack success rate is above RATE (0-1); useful in CI")
     p_run.set_defaults(func=cmd_run)

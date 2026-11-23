@@ -61,6 +61,31 @@ def to_markdown(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _short(rate: dict[str, Any]) -> str:
+    return "n/a" if not rate["total"] else f"{rate['rate'] * 100:.0f}% ({rate['successes']}/{rate['total']})"
+
+
+def comparison_markdown(reports: list[dict[str, Any]]) -> str:
+    """One row per defense, so the cost and the benefit of each mitigation sit next to each other."""
+    first = reports[0]
+    lines = [
+        f"# injecteval defense comparison - `{first['model']}`",
+        "",
+        f"{first['trials_per_scenario']} trial(s) per scenario - generated {first['generated_at']}",
+        "",
+        "| Defense | Attack success (lower is better) | Task success under attack | Task success on controls | Errors |",
+        "| :--- | :--- | :--- | :--- | :---: |",
+    ]
+    for report in reports:
+        summary = report["summary"]
+        lines.append(
+            f"| `{report['defense']['name']}` | {_short(summary['attack_success'])} | "
+            f"{_short(summary['utility_under_attack'])} | {_short(summary['benign_utility'])} | {summary['errors']} |"
+        )
+    lines += ["", "Per-defense reports with full traces are in the sub-directories next to this file.", ""]
+    return "\n".join(lines)
+
+
 _CSS = """
 :root { color-scheme: light dark; --bg:#fff; --fg:#1b1f24; --muted:#59636e; --line:#d1d9e0; --card:#f6f8fa;
         --bad:#b42318; --good:#1a7f37; }

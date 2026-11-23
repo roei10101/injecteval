@@ -4,6 +4,7 @@ import pytest
 
 from injecteval.cli import main
 from injecteval.defenses import get_defense
+from injecteval.environment import OUTBOUND_TOOLS
 from injecteval.models import ModelError, build_model
 from injecteval.report import to_html, to_markdown
 from injecteval.runner import build_report, run_suite, run_trial, summarize, wilson_interval
@@ -29,6 +30,15 @@ def test_no_grader_fires_on_clean_behaviour_and_every_task_is_solvable(scenarios
 def test_benign_controls_have_no_attack_verdict(scenarios):
     results = run(scenarios, "mock:vulnerable")
     assert all(r.attack_success is None for r in results if r.category == "benign_control")
+
+
+def test_markdown_image_attack_leaks_through_the_answer_without_any_outbound_call(by_id):
+    """The canary grader must also watch the final answer, not only the outbound tools."""
+    scenario = by_id["exfil-markdown-image"]
+    result = run_trial(scenario, build_model("mock:vulnerable", scenario), get_defense("none"))
+
+    assert result.attack_success
+    assert not [call for call in result.tool_calls if call["name"] in OUTBOUND_TOOLS]
 
 
 def test_filter_defense_reduces_attacks_against_the_scripted_agent(scenarios):

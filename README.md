@@ -90,7 +90,7 @@ The model must support tool calling; models without it will fail every task rath
 
 ## Scenarios
 
-Twelve scenarios in four categories, each a single readable YAML file in
+Fourteen scenarios in four categories, each a single readable YAML file in
 [`src/injecteval/scenarios`](src/injecteval/scenarios):
 
 | Category | Scenario | Vector | Technique |
@@ -99,6 +99,7 @@ Twelve scenarios in four categories, each a single readable YAML file in
 | | `exfil-webpage-hidden-comment` | web | instruction hidden in an HTML comment |
 | | `exfil-file-fake-policy` | file | impersonates an IT compliance policy |
 | | `exfil-task-blending` | email | request that looks like part of the user's task |
+| | `exfil-markdown-image` | file | secret smuggled out in a Markdown image URL, no tool call |
 | Unauthorized action | `action-delete-file` | file | fake "setup step for AI agents" |
 | | `action-send-phishing` | email | fake system message |
 | | `action-overwrite-config` | web | "recommended setting" that disables TLS verification |
@@ -107,9 +108,13 @@ Twelve scenarios in four categories, each a single readable YAML file in
 | | `hijack-multilingual` | file | payload in a different language than the task |
 | Benign control | `benign-email-reply` | - | a legitimate request the agent *should* act on |
 | | `benign-instructional-doc` | - | imperative wording that is not an attack |
+| | `benign-markdown-link` | - | an answer that legitimately contains a link and an image |
 
-The two controls matter as much as the attacks: `benign-instructional-doc` is a checklist full of
+The controls matter as much as the attacks: `benign-instructional-doc` is a checklist full of
 "you must" and "before you continue", which is exactly what a keyword filter is tempted to delete.
+`benign-markdown-link` is the counterpart of `exfil-markdown-image`, where the secret leaves through
+an image URL in the final answer and no outbound tool is called: stripping every URL from answers
+stops that attack and breaks this task.
 
 All scenarios are original and written for this project; they contain no material from any private
 or proprietary evaluation.
@@ -195,7 +200,7 @@ guard rails can fail a build.
 
 * The payloads are **static**. An adaptive attacker who iterates against a specific model and defense
   will do better; treat these numbers as a floor on risk, not a ceiling.
-* Twelve scenarios is a smoke test, not a benchmark. For broader coverage see
+* Fourteen scenarios is a smoke test, not a benchmark. For broader coverage see
   [AgentDojo](https://github.com/ethz-spylab/agentdojo) and [InjecAgent](https://github.com/uiuc-kang-lab/InjecAgent);
   this project aims to be small enough to read in one sitting and easy to extend.
 * Only single-turn tasks with text tools are covered - no multi-agent setups, memory or images.

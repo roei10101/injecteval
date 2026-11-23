@@ -122,13 +122,14 @@ def test_cli_reports_bad_input(tmp_path, capsys):
         main(["run", "--model", "mock:robust", "--scenario", "does-not-exist", "--out", str(tmp_path)])
 
 
-def test_cli_compare_writes_one_report_per_defense_and_a_table(tmp_path, capsys):
+def test_cli_compare_writes_one_report_per_defense_and_a_table(tmp_path, capsys, scenarios):
+    attacks = sum(scenario.is_attack for scenario in scenarios)
     code = main(["compare", "--model", "mock:vulnerable", "--out", str(tmp_path), "--defenses", "none", "filter"])
 
     table = (tmp_path / "comparison.md").read_text(encoding="utf-8")
     assert code == 0
     assert (tmp_path / "none" / "report.html").exists() and (tmp_path / "filter" / "report.json").exists()
-    assert "| `none` | 100% (10/10) |" in table
+    assert f"| `none` | 100% ({attacks}/{attacks}) |" in table
     assert "| `filter` |" in table and table in capsys.readouterr().out
 
 
